@@ -1,0 +1,34 @@
+from scripts.helpful_scripts import encode_function_data, get_account, upgrade
+from brownie import (
+    Pink_Box,
+    ProxyAdmin,
+    TransparentUpgradeableProxy,
+    Contract,
+    Pink_BoxV2,
+    network,
+    config,
+    exceptions,
+)
+import pytest
+
+
+def test_proxy_upgrades():
+    account = get_account()
+    box = Pink_Box.deploy({"from": account})
+    proxy_admin = ProxyAdmin.deploy({"from": account})
+    box_encoded_initializer_function = encode_function_data()
+    proxy = TransparentUpgradeableProxy.deploy(
+        box.address,
+        proxy_admin.address,
+        box_encoded_initializer_function,
+        {"from": account, "gas_limit": 1000000},
+    )
+    box_v2 = Pink_BoxV2.deploy({"from": account})
+    proxy_box = Contract.from_abi("Pink_BoxV2", proxy.address, Pink_BoxV2.abi)
+    # proxy_box.increment({"from": account, "gas_limit": 1000000})
+    # with pytest.raises(exceptions.VirtualMachineError):
+    # proxy_box.increment({"from": account})
+    upgrade(account, proxy, box_v2, proxy_admin_contract=proxy_admin)
+    assert proxy_box.retrieve() == 0
+    proxy_box.increment({"from": account})
+    assert proxy_box.retrieve() == 1
